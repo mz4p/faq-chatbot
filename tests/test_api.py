@@ -145,3 +145,16 @@ def test_cors_allows_any_origin(knowledge):
         headers={"Origin": "https://example.com", "Access-Control-Request-Method": "POST"},
     )
     assert r.headers["access-control-allow-origin"] == "*"
+
+
+def test_serves_demo_page_and_widget(knowledge, tmp_path_factory):
+    widget = tmp_path_factory.mktemp("widget")
+    (widget / "demo.html").write_text("<h1>demo</h1>", encoding="utf-8")
+    (widget / "chat.js").write_text("// widget", encoding="utf-8")
+    settings = Settings(
+        _env_file=None, anthropic_api_key="k", knowledge_dir=knowledge, widget_dir=widget
+    )
+    client = TestClient(create_app(settings, FakeClient()))
+
+    assert "<h1>demo</h1>" in client.get("/").text
+    assert client.get("/widget/chat.js").text == "// widget"
