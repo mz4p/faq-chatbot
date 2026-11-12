@@ -2,7 +2,6 @@ import logging
 import threading
 from typing import Literal
 
-import anthropic
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -13,10 +12,11 @@ from .chat import ChatError, answer
 from .config import Settings, get_settings
 from .knowledge import load_tenants
 from .limits import DailyBudget, RateLimiter, cost_usd
+from .llm import LLM, create_llm
 
 logger = logging.getLogger(__name__)
 
-MSG_UNKNOWN_TENANT ="Nie znaleziono konfiguracji."
+MSG_UNKNOWN_TENANT = "Nie znaleziono konfiguracji."
 MSG_TOO_LONG = "Wiadomość jest za długa (maksymalnie {n} znaków)."
 MSG_EMPTY = "Wiadomość nie może być pusta."
 MSG_RATE_LIMIT = "Zbyt wiele zapytań. Spróbuj ponownie za chwilę."
@@ -39,14 +39,9 @@ class ChatResponse(BaseModel):
     reply: str
 
 
-def create_app(
-    settings: Settings | None = None,
-    client: anthropic.Anthropic | None = None,
-) -> FastAPI:
+def create_app(settings: Settings | None = None, llm: LLM | None = None) -> FastAPI:
     settings = settings or get_settings()
-    client = client or anthropic.Anthropic(
-        api_key=settings.anthropic_api_key, max_retries=1, timeout=30.0
-    )
+    llm = llm or create_llm(settings)
     tenants = load_tenants(settings.knowledge_dir)
     limiter = RateLimiter(settings.rate_limit_per_minute)
     budget = DailyBudget(settings.daily_budget_usd)
@@ -93,11 +88,11 @@ def create_app(
 
         try:
             result = answer(
-                client,
-                settings,
+                llm,
                 knowledge,
                 [h.model_dump() for h in body.history],
                 message,
+                settings.max_history,
             )
         except ChatError:
             logger.exception("Błąd wywołania modelu (tenant=%s)", body.tenant)

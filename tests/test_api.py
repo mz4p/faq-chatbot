@@ -1,37 +1,24 @@
-from types import SimpleNamespace
-
-import anthropic
-import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.llm import ChatError, Completion, Usage
 from app.main import create_app
 
-USAGE = SimpleNamespace(
-    input_tokens=1000,
-    output_tokens=100,
-    cache_creation_input_tokens=0,
-    cache_read_input_tokens=0,
-)
+USAGE = Usage(input_tokens=1000, output_tokens=100)
 
 
-class FakeClient:
+class FakeLLM:
     def __init__(self, text="Strzyżenie kosztuje 70 zł.", error=None):
         self.calls = 0
         self.text = text
         self.error = error
-        self.messages = self
 
-    def create(self, **kwargs):
+    def complete(self, system, messages):
         self.calls += 1
         if self.error:
             raise self.error
-        return SimpleNamespace(
-            content=[SimpleNamespace(type="text", text=self.text)],
-            stop_reason="end_turn",
-            usage=USAGE,
-        )
+        return Completion(self.text, False, USAGE)
 
 
 @pytest.fixture
@@ -41,7 +28,7 @@ def knowledge(tmp_path):
     return tmp_path
 
 
-def make(knowledge, client=None, **overrides):
+def make(knowledge, llm=None, **overrides):
     settings = Settings(
         _env_file=None,
         anthropic_api_key="k",
@@ -49,7 +36,7 @@ def make(knowledge, client=None, **overrides):
         widget_dir=knowledge / "brak-widgetu",
         **overrides,
     )
-    fake = client or FakeClient()
+    fake = llm or FakeLLM()
     return TestClient(create_app(settings, fake)), fake
 
 
@@ -131,8 +118,7 @@ def test_budget_is_spent_by_requests(knowledge):
 
 
 def test_upstream_error_returns_502_without_details(knowledge):
-    error = anthropic.APIConnectionError(request=httpx2.Request("POST", "http://x"))
-    client, _ = make(knowledge, client=FakeClient(error=error))
+    client, _ = make(knowledge, llm=FakeLLM(error=ChatError("Connection refused")))
     r = post(client)
     assert r.status_code == 502
     assert "Connection" not in r.text
@@ -154,7 +140,7 @@ def test_serves_demo_page_and_widget(knowledge, tmp_path_factory):
     settings = Settings(
         _env_file=None, anthropic_api_key="k", knowledge_dir=knowledge, widget_dir=widget
     )
-    client = TestClient(create_app(settings, FakeClient()))
+    client = TestClient(create_app(settings, FakeLLM()))
 
     assert "<h1>demo</h1>" in client.get("/").text
     assert client.get("/widget/chat.js").text == "// widget"

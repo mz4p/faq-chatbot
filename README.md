@@ -15,7 +15,7 @@ needed. Includes rate limiting, a daily spending cap, an eval suite and a Docker
 widget/chat.js  ──POST /chat──▶  FastAPI (app/main.py)
                                    ├─ limity: IP + dzienny budżet (app/limits.py)
                                    ├─ wiedza firmy z knowledge/<firma>/*.md (app/knowledge.py)
-                                   └─ Claude Haiku 5.5, wiedza w prompcie, cache'owana (app/chat.py)
+                                   └─ Claude Haiku 5.5, wiedza w prompcie, cache'owana (app/chat.py, app/llm.py)
 ```
 
 Mała firma ma kilka stron dokumentów, które mieszczą się w prompcie. Dzięki temu odpowiedzi są
@@ -27,7 +27,7 @@ Wymagania: [uv](https://docs.astral.sh/uv/) i klucz API Anthropic.
 
 ```bash
 git clone <adres-repo> && cd faq-chatbot
-cp .env.example .env          # wpisz ANTHROPIC_API_KEY
+cp .env.example .env          # wpisz klucz (Anthropic albo API zgodne z OpenAI)
 uv sync
 uv run uvicorn app.main:create_app --factory --reload
 ```
@@ -73,14 +73,16 @@ dzienny budżet, `502` problem po stronie modelu.
 
 | Zmienna | Domyślnie | Znaczenie |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | brak (wymagana) | bez niej aplikacja nie wystartuje |
-| `MODEL` | `claude-haiku-5-5` | model |
+| `LLM_PROVIDER` | `anthropic` | `anthropic` lub `openai_compatible` (np. Nous Portal) |
+| `ANTHROPIC_API_KEY` | brak | wymagany dla `anthropic`; bez niego aplikacja nie wystartuje |
+| `LLM_BASE_URL`, `LLM_API_KEY` | brak | wymagane dla `openai_compatible` |
+| `MODEL` | `claude-haiku-5-5` | model; dla `openai_compatible` w formacie dostawcy, np. `anthropic/claude-haiku-5.5` |
 | `EFFORT` | `low` | głębokość myślenia modelu |
 | `MAX_TOKENS` | `1500` | limit odpowiedzi, myślenie też się wlicza |
 | `MAX_MESSAGE_CHARS` | `500` | maksymalna długość pytania |
 | `MAX_HISTORY` | `6` | ile ostatnich wymian trafia do modelu |
 | `RATE_LIMIT_PER_MINUTE` | `10` | zapytań na IP na minutę |
-| `DAILY_BUDGET_USD` | `0.30` | dzienny twardy limit wydatków |
+| `DAILY_BUDGET_USD` | `0.30` | dzienny twardy limit wydatków; przy kluczu z limitem miesięcznym ustaw dzienny ≈ limit / 30 |
 | `TRUST_FORWARDED_FOR` | `false` | włącz za proxy (Fly, Render, nginx), żeby limit liczył IP klienta; bierzemy ostatni wpis `X-Forwarded-For`, który dopisuje proxy |
 
 ## Koszty i bezpieczeństwo
@@ -122,9 +124,16 @@ fragmenty, a reszta (limity, API, widget) zostaje bez zmian.
 ## Struktura
 
 ```
-app/        config, knowledge, limits, chat, main
+app/        config, knowledge, limits, llm (dostawcy), chat, main
 knowledge/  salon/, sklep/
 widget/     chat.js, demo.html
 evals/      questions.yaml, run_evals.py
 tests/
 ```
+
+## Dostawcy modelu
+
+`app/llm.py` ukrywa dostawcę za jedną metodą `complete(system, messages)`. Są dwie implementacje:
+SDK Anthropic oraz dowolne API zgodne z OpenAI `/chat/completions` (sprawdzone na Nous Portal
+z modelem `anthropic/claude-haiku-5.5`; cache promptu działa w obu). Kolejnego dostawcę dodaje się
+jako nową klasę z metodą `complete`.

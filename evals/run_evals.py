@@ -1,6 +1,6 @@
 """Ręczna ewaluacja bota na prawdziwym API.
 
-Uruchomienie (wymaga ANTHROPIC_API_KEY w .env; zestaw ~22 pytań kosztuje ułamki grosza):
+Uruchomienie (wymaga klucza dostawcy w .env, patrz README; zestaw ~22 pytań kosztuje ułamki grosza):
     uv run python evals/run_evals.py
     uv run python evals/run_evals.py --tenant salon
 
@@ -11,7 +11,6 @@ import argparse
 import sys
 from pathlib import Path
 
-import anthropic
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -21,6 +20,7 @@ from app.chat import answer  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.knowledge import load_tenants  # noqa: E402
 from app.limits import cost_usd  # noqa: E402
+from app.llm import create_llm  # noqa: E402
 
 
 def check(reply: str, case: dict) -> list[str]:
@@ -42,7 +42,7 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = get_settings()
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key, max_retries=2, timeout=60.0)
+    llm = create_llm(settings)
     tenants = load_tenants(settings.knowledge_dir)
     cases = yaml.safe_load((ROOT / "evals" / "questions.yaml").read_text(encoding="utf-8"))
 
@@ -53,7 +53,7 @@ def main() -> int:
             continue
         print(f"\n== {tenant} ==")
         for case in questions:
-            result = answer(client, settings, tenants[tenant], [], case["q"])
+            result = answer(llm, tenants[tenant], [], case["q"], settings.max_history)
             spent += cost_usd(result.usage, settings)
             problems = check(result.text, case)
             total += 1
