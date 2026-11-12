@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     cache_write_multiplier: float = 1.25
     cache_read_multiplier: float = 0.10
 
+    # Włącz tylko za zaufanym proxy (Fly, Render, nginx): wtedy IP klienta bierzemy z X-Forwarded-For.
+    trust_forwarded_for: bool = False
+
     knowledge_dir: Path = ROOT / "knowledge"
     widget_dir: Path = ROOT / "widget"
 
