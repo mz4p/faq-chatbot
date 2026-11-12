@@ -1,3 +1,4 @@
+import logging
 import threading
 from typing import Literal
 
@@ -13,7 +14,9 @@ from .config import Settings, get_settings
 from .knowledge import load_tenants
 from .limits import DailyBudget, RateLimiter, cost_usd
 
-MSG_UNKNOWN_TENANT = "Nie znaleziono konfiguracji."
+logger = logging.getLogger(__name__)
+
+MSG_UNKNOWN_TENANT ="Nie znaleziono konfiguracji."
 MSG_TOO_LONG = "Wiadomość jest za długa (maksymalnie {n} znaków)."
 MSG_EMPTY = "Wiadomość nie może być pusta."
 MSG_RATE_LIMIT = "Zbyt wiele zapytań. Spróbuj ponownie za chwilę."
@@ -59,9 +62,11 @@ def create_app(
 
     def client_ip(request: Request) -> str:
         if settings.trust_forwarded_for:
+            # Skrajnie lewy wpis wpisuje klient (można go podrobić). Zaufany proxy dopisuje
+            # prawdziwy adres na końcu, więc bierzemy ostatni.
             forwarded = request.headers.get("x-forwarded-for")
             if forwarded:
-                return forwarded.split(",")[0].strip()
+                return forwarded.split(",")[-1].strip()
         return request.client.host if request.client else "unknown"
 
     @app.get("/health")
@@ -95,6 +100,7 @@ def create_app(
                 message,
             )
         except ChatError:
+            logger.exception("Błąd wywołania modelu (tenant=%s)", body.tenant)
             raise HTTPException(502, MSG_UPSTREAM) from None
 
         with lock:

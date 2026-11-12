@@ -15,7 +15,7 @@ needed. Includes rate limiting, a daily spending cap, an eval suite and a Docker
 widget/chat.js  ──POST /chat──▶  FastAPI (app/main.py)
                                    ├─ limity: IP + dzienny budżet (app/limits.py)
                                    ├─ wiedza firmy z knowledge/<firma>/*.md (app/knowledge.py)
-                                   └─ Claude Haiku 5.5, wiedza w prompcie z cache'em (app/chat.py)
+                                   └─ Claude Haiku 5.5, wiedza w prompcie, cache'owana (app/chat.py)
 ```
 
 Mała firma ma kilka stron dokumentów, które mieszczą się w prompcie. Dzięki temu odpowiedzi są
@@ -81,7 +81,7 @@ dzienny budżet, `502` problem po stronie modelu.
 | `MAX_HISTORY` | `6` | ile ostatnich wymian trafia do modelu |
 | `RATE_LIMIT_PER_MINUTE` | `10` | zapytań na IP na minutę |
 | `DAILY_BUDGET_USD` | `0.30` | dzienny twardy limit wydatków |
-| `TRUST_FORWARDED_FOR` | `false` | włącz za proxy (Fly, Render, nginx), żeby limit liczył IP klienta |
+| `TRUST_FORWARDED_FOR` | `false` | włącz za proxy (Fly, Render, nginx), żeby limit liczył IP klienta; bierzemy ostatni wpis `X-Forwarded-For`, który dopisuje proxy |
 
 ## Koszty i bezpieczeństwo
 

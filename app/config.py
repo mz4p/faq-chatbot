@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -8,8 +9,9 @@ ROOT = Path(__file__).resolve().parent.parent
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
-    # Brak wartości domyślnej: bez klucza aplikacja nie wystartuje.
-    anthropic_api_key: str
+    # Brak wartości domyślnej i min_length=1: ani brak klucza, ani pusty wpis z .env.example
+    # (ANTHROPIC_API_KEY=) nie pozwolą aplikacji wystartować.
+    anthropic_api_key: str = Field(min_length=1)
 
     model: str = "claude-haiku-5-5"
     # Myślenie adaptacyjne też zużywa max_tokens, więc zapas jest większy niż sama odpowiedź.

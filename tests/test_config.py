@@ -10,6 +10,12 @@ def test_missing_api_key_stops_startup(monkeypatch):
         Settings(_env_file=None)
 
 
+def test_empty_api_key_stops_startup(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
 def test_defaults_with_key(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     s = Settings(_env_file=None)

@@ -158,3 +158,26 @@ def test_serves_demo_page_and_widget(knowledge, tmp_path_factory):
 
     assert "<h1>demo</h1>" in client.get("/").text
     assert client.get("/widget/chat.js").text == "// widget"
+
+
+def test_spoofed_forwarded_for_does_not_bypass_rate_limit(knowledge):
+    client, _ = make(knowledge, rate_limit_per_minute=1, trust_forwarded_for=True)
+    first = post_with_ip(client, "9.9.9.9, 1.1.1.1")
+    # klient podrabia lewy wpis, ale zaufany proxy dopisał ten sam prawy adres
+    second = post_with_ip(client, "8.8.8.8, 1.1.1.1")
+    assert (first.status_code, second.status_code) == (200, 429)
+
+
+def test_forwarded_for_is_ignored_when_proxy_not_trusted(knowledge):
+    client, _ = make(knowledge, rate_limit_per_minute=1)
+    first = post_with_ip(client, "1.1.1.1")
+    second = post_with_ip(client, "2.2.2.2")  # ten sam rzeczywisty klient testowy
+    assert (first.status_code, second.status_code) == (200, 429)
+
+
+def post_with_ip(client, forwarded):
+    return client.post(
+        "/chat",
+        json={"tenant": "salon", "message": "Ile kosztuje strzyżenie?"},
+        headers={"X-Forwarded-For": forwarded},
+    )
